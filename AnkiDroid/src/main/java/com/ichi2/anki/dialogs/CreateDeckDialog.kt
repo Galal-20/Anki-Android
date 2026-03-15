@@ -117,8 +117,8 @@ class CreateDeckDialog(
                     val hintRes =
                         when (deckDialogType) {
                             DeckDialogType.DECK -> R.string.create_new_deck
-                            DeckDialogType.SUB_DECK -> R.string.create_new_sub_deck
-                            DeckDialogType.RENAME_DECK -> R.string.rename_deck
+                            DeckDialogType.SUB_DECK -> R.string.create_new_deck
+                            DeckDialogType.RENAME_DECK -> R.string.new_name_hint
                             DeckDialogType.FILTERED_DECK -> R.string.filter_deck
                         }
 
