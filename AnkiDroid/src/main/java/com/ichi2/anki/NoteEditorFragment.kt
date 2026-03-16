@@ -449,6 +449,7 @@ class NoteEditorFragment :
         }
         require(deck is SelectableDeck.Deck)
         deckId = deck.deckId
+        saveLastSelectedDeck(deckId)
         view?.findViewById<TextView>(R.id.note_deck_name)?.text = deck.name
     }
 
@@ -518,7 +519,7 @@ class NoteEditorFragment :
         if (savedInstanceState != null) {
             caller = fromValue(savedInstanceState.getInt(CALLER_KEY))
             addNote = savedInstanceState.getBoolean("addNote")
-            deckId = savedInstanceState.getLong("did")
+            deckId = savedInstanceState.getLong("did", loadLastSelectedDeck())
             selectedTags = savedInstanceState.getStringArrayList("tags")
             reloadRequired = savedInstanceState.getBoolean(RELOAD_REQUIRED_EXTRA_KEY)
             pastedImageCache =
@@ -533,6 +534,9 @@ class NoteEditorFragment :
                 if (ACTION_CREATE_FLASHCARD == action || ACTION_CREATE_FLASHCARD_SEND == action || Intent.ACTION_PROCESS_TEXT == action) {
                     caller = NoteEditorCaller.NOTEEDITOR_INTENT_ADD
                 }
+            }
+            if (caller == NoteEditorCaller.NOTEEDITOR_INTENT_ADD) {
+                deckId = loadLastSelectedDeck()
             }
         }
     }
@@ -2953,6 +2957,7 @@ class NoteEditorFragment :
         private const val PREF_NOTE_EDITOR_CAPITALIZE = "note_editor_capitalize"
         private const val PREF_NOTE_EDITOR_FONT_SIZE = "note_editor_font_size"
         private const val PREF_NOTE_EDITOR_CUSTOM_BUTTONS = "note_editor_custom_buttons"
+        private const val PREF_LAST_DECK_ID = "last_deck_id"
 
         fun newInstance(launcher: NoteEditorLauncher): NoteEditorFragment =
             NoteEditorFragment().apply {
@@ -2976,5 +2981,16 @@ class NoteEditorFragment :
             !AnkiDroidApp.instance
                 .sharedPrefs()
                 .getBoolean(PREF_NOTE_EDITOR_SHOW_TOOLBAR, true)
+
+        @SuppressLint("UseKtx")
+        fun saveLastSelectedDeck(deckId: Long) {
+            val prefs = AnkiDroidApp.instance.sharedPrefs()
+            prefs.edit { putLong(PREF_LAST_DECK_ID, deckId) }
+        }
+
+        fun loadLastSelectedDeck(defaultDeckId: Long = 0): Long {
+            val prefs = AnkiDroidApp.instance.sharedPrefs()
+            return prefs.getLong(PREF_LAST_DECK_ID, defaultDeckId)
+        }
     }
 }
