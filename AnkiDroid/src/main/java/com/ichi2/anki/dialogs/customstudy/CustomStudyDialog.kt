@@ -471,7 +471,7 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
                         binding.detailsEditText2Layout.error = null
                         dialog.positiveButton.isEnabled = true
                     } else {
-                        binding.detailsEditText2Layout.error = "No cards matched the criteria you provided"
+                        binding.detailsEditText2Layout.error = getString(R.string.no_cards_matched_the_criteria_you_provided)
                         dialog.positiveButton.isEnabled = false
                     }
                 }
