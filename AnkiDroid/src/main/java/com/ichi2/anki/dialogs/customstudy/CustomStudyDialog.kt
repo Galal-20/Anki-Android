@@ -22,6 +22,8 @@ import android.app.Dialog
 import android.content.res.Resources
 import android.os.Bundle
 import android.os.Parcelable
+import android.text.InputFilter
+import android.text.Spanned
 import android.util.TypedValue
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
@@ -88,6 +90,7 @@ import com.ichi2.utils.setPaddingRelative
 import com.ichi2.utils.textAsIntOrNull
 import com.ichi2.utils.title
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.parcelize.Parcelize
 import net.ankiweb.rsdroid.BackendException
@@ -335,10 +338,22 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
             if (contextMenuOption == EXTEND_NEW || contextMenuOption == EXTEND_REV) {
                 inputType = EditorInfo.TYPE_CLASS_NUMBER or EditorInfo.TYPE_NUMBER_FLAG_SIGNED
             }
+            if (contextMenuOption == STUDY_AHEAD) {
+                filters = arrayOf(InputFilter.LengthFilter(9), NoLeadingZeroFilter())
+                val initialValue = defaultValue.toIntOrNull() ?: 1
+                binding.detailsEditText2Layout.suffixText =
+                    resources.getQuantityString(
+                        R.plurals.set_due_date_label_suffix,
+                        initialValue,
+                        initialValue,
+                    )
+            }
         }
         val positiveBtnLabel =
             if (contextMenuOption == STUDY_TAGS) {
                 TR.customStudyChooseTags().toSentenceCase(R.string.sentence_choose_tags)
+            } else if (contextMenuOption == STUDY_AHEAD) {
+                getString(R.string.dialog_positive_create)
             } else {
                 getString(R.string.dialog_ok)
             }
@@ -423,12 +438,70 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
 
         binding.detailsEditText2.doAfterTextChanged {
             dialog.positiveButton.isEnabled = userInputValue != null && userInputValue != 0
+            val value = it?.toString()?.toIntOrNull()
+
+            if (contextMenuOption == STUDY_AHEAD) {
+                if (userInputValue == null) {
+                    dialog.positiveButton.isEnabled = false
+                    binding.detailsEditText2Layout.error = getString(R.string.custom_study_ahead_Invalid_number)
+                    return@doAfterTextChanged
+                }
+                if (userInputValue == 0) {
+                    binding.detailsEditText2Layout.error = getString(R.string.custom_study_ahead_prevent_leading_zeros)
+                    dialog.positiveButton.isEnabled = false
+                    return@doAfterTextChanged
+                }
+
+                val safeValue = value ?: return@doAfterTextChanged
+
+                binding.detailsEditText2Layout.suffixText =
+                    resources.getQuantityString(
+                        R.plurals.set_due_date_label_suffix,
+                        safeValue,
+                        safeValue,
+                    )
+
+                val currentInput = userInputValue
+                lifecycleScope.launch {
+                    val hasCards = hasMatchingCards(contextMenuOption, userInputValue)
+
+                    if (currentInput != userInputValue) return@launch
+
+                    if (hasCards) {
+                        binding.detailsEditText2Layout.error = null
+                        dialog.positiveButton.isEnabled = true
+                    } else {
+                        binding.detailsEditText2Layout.error = "No cards matched the criteria you provided"
+                        dialog.positiveButton.isEnabled = false
+                    }
+                }
+            }
         }
 
         // Show soft keyboard
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
         return dialog
     }
+
+    @SuppressLint("CheckResult")
+    private suspend fun hasMatchingCards(
+        option: ContextMenuOption,
+        input: Int?,
+    ): Boolean =
+        try {
+            withCol {
+                val currentDeckName = decks.name(viewModel.deckId)
+                val query =
+                    when (option) {
+                        STUDY_AHEAD -> "deck:\"$currentDeckName\" prop:due<=$input"
+                        else -> "deck:\"$currentDeckName\""
+                    }
+                findCards(query).isNotEmpty()
+            }
+        } catch (e: Exception) {
+            Timber.e(e)
+            true
+        }
 
     // TODO cram kind and the included/excluded tags lists are only relevant for STUDY_TAGS and
     //  should be included in the option to not leak in the method's api
@@ -510,6 +583,7 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
                 EXTEND_REV -> deferredDefaults.getCompleted().labelForReviewQueueAvailable()
                 STUDY_FORGOT,
                 STUDY_AHEAD,
+                -> resources.getString(R.string.custom_study_ahead_title)
                 STUDY_PREVIEW,
                 STUDY_TAGS,
                 null,
@@ -559,6 +633,25 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
                 -> ""
             }
         }
+
+    class NoLeadingZeroFilter : InputFilter {
+        override fun filter(
+            source: CharSequence?,
+            start: Int,
+            end: Int,
+            dest: Spanned?,
+            dstart: Int,
+            dend: Int,
+        ): CharSequence? {
+            val newText = dest?.replaceRange(dstart, dend, source?.subSequence(start, end) ?: "")
+
+            return if (newText != null && newText.length > 1 && newText.startsWith("0")) {
+                ""
+            } else {
+                null
+            }
+        }
+    }
 
     /**
      * Represents actions for managing custom study sessions and extending study limits.
