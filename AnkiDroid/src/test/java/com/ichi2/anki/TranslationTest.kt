@@ -282,6 +282,7 @@ class TranslationTest : RobolectricTest() {
                 "Reposition", // R.string.card_editor_reposition_card, R.string.card_template_reposition_template
                 // TR.actionsReposition()
                 "Reschedule", // R.string.card_editor_reschedule_card | TR.browsingReschedule()
+                "Review ahead", // R.string.custom_study_ahead_title | TR.customStudyReviewAhead()
                 "Reviews", // R.string.pref_controls_reviews_tab
                 // TR.schedulingReviews()
                 // TR.cardStatsReviewCount()
