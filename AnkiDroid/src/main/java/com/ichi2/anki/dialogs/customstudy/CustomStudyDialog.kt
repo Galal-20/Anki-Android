@@ -583,7 +583,7 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
                 EXTEND_REV -> deferredDefaults.getCompleted().labelForReviewQueueAvailable()
                 STUDY_FORGOT,
                 STUDY_AHEAD,
-                -> resources.getString(R.string.custom_study_ahead_title)
+                -> TR.customStudyReviewAhead()
                 STUDY_PREVIEW,
                 STUDY_TAGS,
                 null,
