@@ -334,6 +334,7 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
             // Give EditText focus and show keyboard
             setSelectAllOnFocus(true)
             requestFocus()
+            inputType = EditorInfo.TYPE_CLASS_NUMBER
             // a user may enter a negative value when extending limits
             if (contextMenuOption == EXTEND_NEW || contextMenuOption == EXTEND_REV) {
                 inputType = EditorInfo.TYPE_CLASS_NUMBER or EditorInfo.TYPE_NUMBER_FLAG_SIGNED
@@ -581,9 +582,8 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
             when (selectedSubDialog) {
                 EXTEND_NEW -> deferredDefaults.getCompleted().labelForNewQueueAvailable()
                 EXTEND_REV -> deferredDefaults.getCompleted().labelForReviewQueueAvailable()
+                STUDY_AHEAD -> TR.customStudyReviewAhead()
                 STUDY_FORGOT,
-                STUDY_AHEAD,
-                -> TR.customStudyReviewAhead()
                 STUDY_PREVIEW,
                 STUDY_TAGS,
                 null,
