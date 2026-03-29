@@ -444,7 +444,7 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
             if (contextMenuOption == STUDY_AHEAD) {
                 if (userInputValue == null) {
                     dialog.positiveButton.isEnabled = false
-                    binding.detailsEditText2Layout.error = getString(R.string.custom_study_ahead_Invalid_number)
+                    binding.detailsEditText2Layout.error = getString(R.string.custom_study_ahead_invalid_number)
                     return@doAfterTextChanged
                 }
                 if (userInputValue == 0) {
@@ -472,7 +472,7 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
                         binding.detailsEditText2Layout.error = null
                         dialog.positiveButton.isEnabled = true
                     } else {
-                        binding.detailsEditText2Layout.error = getString(R.string.no_cards_matched_the_criteria_you_provided)
+                        binding.detailsEditText2Layout.error = TR.customStudyNoCardsMatchedTheCriteriaYou()
                         dialog.positiveButton.isEnabled = false
                     }
                 }
