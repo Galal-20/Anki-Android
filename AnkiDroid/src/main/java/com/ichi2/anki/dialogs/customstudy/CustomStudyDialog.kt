@@ -22,6 +22,7 @@ import android.app.Dialog
 import android.content.res.Resources
 import android.os.Bundle
 import android.os.Parcelable
+import android.text.Editable
 import android.text.InputFilter
 import android.text.Spanned
 import android.util.TypedValue
@@ -441,47 +442,75 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
             dialog.positiveButton.isEnabled = userInputValue != null && userInputValue != 0
             val value = it?.toString()?.toIntOrNull()
 
-            if (contextMenuOption == STUDY_AHEAD) {
-                if (userInputValue == null) {
-                    dialog.positiveButton.isEnabled = false
-                    binding.detailsEditText2Layout.error = getString(R.string.custom_study_ahead_invalid_number)
-                    return@doAfterTextChanged
-                }
-                if (userInputValue == 0) {
-                    binding.detailsEditText2Layout.error = getString(R.string.custom_study_ahead_prevent_leading_zeros)
-                    dialog.positiveButton.isEnabled = false
-                    return@doAfterTextChanged
-                }
-
-                val safeValue = value ?: return@doAfterTextChanged
-
-                binding.detailsEditText2Layout.suffixText =
-                    resources.getQuantityString(
-                        R.plurals.set_due_date_label_suffix,
-                        safeValue,
-                        safeValue,
-                    )
-
-                val currentInput = userInputValue
-                lifecycleScope.launch {
-                    val hasCards = hasMatchingCards(contextMenuOption, userInputValue)
-
-                    if (currentInput != userInputValue) return@launch
-
-                    if (hasCards) {
-                        binding.detailsEditText2Layout.error = null
-                        dialog.positiveButton.isEnabled = true
-                    } else {
-                        binding.detailsEditText2Layout.error = TR.customStudyNoCardsMatchedTheCriteriaYou()
-                        dialog.positiveButton.isEnabled = false
-                    }
-                }
-            }
+            // Prevent invalid inputs like leading zeros (e.g. "01") by normalizing the value.
+            if (replaceZeroWithNextNumber(it)) return@doAfterTextChanged
+            // Delegate STUDY_AHEAD-specific validation, suffix handling (day/days),
+            // and async card matching check to a dedicated function for better separation of concerns.
+            studyAheadCase(contextMenuOption, dialog, value)
         }
 
         // Show soft keyboard
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
         return dialog
+    }
+
+    private fun studyAheadCase(
+        contextMenuOption: ContextMenuOption,
+        dialog: AlertDialog,
+        value: Int?,
+    ) {
+        if (contextMenuOption == STUDY_AHEAD) {
+            if (userInputValue == null) {
+                dialog.positiveButton.isEnabled = false
+                return
+            }
+            if (userInputValue == 0) {
+                binding.detailsEditText2Layout.error =
+                    getString(R.string.custom_study_ahead_prevent_leading_zeros)
+                dialog.positiveButton.isEnabled = false
+                return
+            }
+
+            val safeValue = value ?: return
+
+            binding.detailsEditText2Layout.suffixText =
+                resources.getQuantityString(
+                    R.plurals.set_due_date_label_suffix,
+                    safeValue,
+                    safeValue,
+                )
+
+            val currentInput = userInputValue
+            lifecycleScope.launch {
+                val hasCards = hasMatchingCards(contextMenuOption, userInputValue)
+
+                if (currentInput != userInputValue) return@launch
+
+                if (hasCards) {
+                    binding.detailsEditText2Layout.error = null
+                    dialog.positiveButton.isEnabled = true
+                } else {
+                    binding.detailsEditText2Layout.error =
+                        TR.customStudyNoCardsMatchedTheCriteriaYou()
+                    dialog.positiveButton.isEnabled = false
+                }
+            }
+        }
+    }
+
+    private fun replaceZeroWithNextNumber(editable: Editable?): Boolean {
+        val text = editable?.toString() ?: return true
+
+        if (text.length > 1 && text.startsWith("0")) {
+            val newText = text.trimStart('0')
+
+            val finalText = newText.ifEmpty { "0" }
+
+            binding.detailsEditText2.setText(finalText)
+            binding.detailsEditText2.setSelection(finalText.length)
+            return true
+        }
+        return false
     }
 
     @SuppressLint("CheckResult")
@@ -645,7 +674,13 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
         ): CharSequence? {
             val newText = dest?.replaceRange(dstart, dend, source?.subSequence(start, end) ?: "")
 
-            return if (newText != null && newText.length > 1 && newText.startsWith("0")) {
+            if (dest?.toString() == "0") return null
+
+            return if (
+                newText != null &&
+                newText.length > 1 &&
+                newText.startsWith("0")
+            ) {
                 ""
             } else {
                 null
