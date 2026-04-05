@@ -341,7 +341,8 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
                 inputType = EditorInfo.TYPE_CLASS_NUMBER or EditorInfo.TYPE_NUMBER_FLAG_SIGNED
             }
             if (contextMenuOption == STUDY_AHEAD) {
-                filters = arrayOf(InputFilter.LengthFilter(9), NoLeadingZeroFilter())
+                // UI safeguard: prevent excessively long numeric input
+                filters = arrayOf(InputFilter.LengthFilter(5), NoLeadingZeroFilter())
                 val initialValue = defaultValue.toIntOrNull() ?: 1
                 binding.detailsEditText2Layout.suffixText =
                     resources.getQuantityString(
@@ -444,8 +445,6 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
 
             // Prevent invalid inputs like leading zeros (e.g. "01") by normalizing the value.
             if (replaceZeroWithNextNumber(it)) return@doAfterTextChanged
-            // Delegate STUDY_AHEAD-specific validation, suffix handling (day/days),
-            // and async card matching check to a dedicated function for better separation of concerns.
             studyAheadCase(contextMenuOption, dialog, value)
         }
 
@@ -459,41 +458,43 @@ class CustomStudyDialog : AnalyticsDialogFragment() {
         dialog: AlertDialog,
         value: Int?,
     ) {
-        if (contextMenuOption == STUDY_AHEAD) {
-            if (userInputValue == null) {
-                dialog.positiveButton.isEnabled = false
-                return
-            }
-            if (userInputValue == 0) {
+        if (contextMenuOption != STUDY_AHEAD) return
+
+        if (userInputValue == null) {
+            binding.detailsEditText2Layout.error = null
+            dialog.positiveButton.isEnabled = false
+            return
+        }
+
+        if (userInputValue == 0) {
+            binding.detailsEditText2Layout.error =
+                getString(R.string.custom_study_ahead_prevent_leading_zeros)
+            dialog.positiveButton.isEnabled = false
+            return
+        }
+
+        val safeValue = value ?: return
+
+        binding.detailsEditText2Layout.suffixText =
+            resources.getQuantityString(
+                R.plurals.set_due_date_label_suffix,
+                safeValue,
+                safeValue,
+            )
+
+        val currentInput = userInputValue
+        lifecycleScope.launch {
+            val hasCards = hasMatchingCards(contextMenuOption, userInputValue)
+
+            if (currentInput != userInputValue) return@launch
+
+            if (hasCards) {
+                binding.detailsEditText2Layout.error = null
+                dialog.positiveButton.isEnabled = true
+            } else {
                 binding.detailsEditText2Layout.error =
-                    getString(R.string.custom_study_ahead_prevent_leading_zeros)
+                    TR.customStudyNoCardsMatchedTheCriteriaYou()
                 dialog.positiveButton.isEnabled = false
-                return
-            }
-
-            val safeValue = value ?: return
-
-            binding.detailsEditText2Layout.suffixText =
-                resources.getQuantityString(
-                    R.plurals.set_due_date_label_suffix,
-                    safeValue,
-                    safeValue,
-                )
-
-            val currentInput = userInputValue
-            lifecycleScope.launch {
-                val hasCards = hasMatchingCards(contextMenuOption, userInputValue)
-
-                if (currentInput != userInputValue) return@launch
-
-                if (hasCards) {
-                    binding.detailsEditText2Layout.error = null
-                    dialog.positiveButton.isEnabled = true
-                } else {
-                    binding.detailsEditText2Layout.error =
-                        TR.customStudyNoCardsMatchedTheCriteriaYou()
-                    dialog.positiveButton.isEnabled = false
-                }
             }
         }
     }
