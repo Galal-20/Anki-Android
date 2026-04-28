@@ -16,6 +16,7 @@
 package com.ichi2.anki.dialogs
 
 import android.os.Bundle
+import android.os.Looper
 import android.widget.ListView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.bundleOf
@@ -49,6 +50,7 @@ import com.ichi2.anki.libanki.sched.Scheduler
 import com.ichi2.testutils.AnkiFragmentScenario
 import com.ichi2.testutils.isJsonEqual
 import com.ichi2.testutils.uninitializeField
+import com.ichi2.utils.positiveButton
 import io.mockk.every
 import io.mockk.mockk
 import org.hamcrest.CoreMatchers.allOf
@@ -62,7 +64,9 @@ import org.junit.Before
 import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -313,6 +317,104 @@ class CustomStudyDialogTest : RobolectricTest() {
                 .check(matches(isEnabled()))
         }
     }
+
+    @Test
+    fun `buildQuery returns correct string for STUDY_REVIEW_AHEAD`() =
+        runTest {
+            val deckName = "Default"
+            val daysAhead = 5
+
+            withCustomStudyFragment(args = argumentsDisplayingMainScreen()) { dialogFragment ->
+
+                val result =
+                    dialogFragment.buildQuery(
+                        deckName,
+                        ContextMenuOption.STUDY_AHEAD,
+                        daysAhead,
+                    )
+                val expectedQuery = "deck:\"$deckName\" prop:due<=$daysAhead"
+                assertEquals(expectedQuery, result)
+            }
+        }
+
+    @Test
+    fun `buildQuery returns only deck name for other options`() =
+        runTest {
+            val deckName = "Spanish"
+
+            withCustomStudyFragment(args = argumentsDisplayingMainScreen()) { dialogFragment ->
+
+                val result =
+                    dialogFragment.buildQuery(
+                        deckName,
+                        ContextMenuOption.EXTEND_NEW,
+                        10,
+                    )
+
+                val expectedQuery = "deck:\"$deckName\""
+                assertEquals(expectedQuery, result)
+            }
+        }
+
+    @Test
+    fun `study ahead subdialog logic validation`() =
+        runTest {
+            val deckId = col.decks.id("Default")
+
+            val note = addBasicNote()
+            val card = note.firstCard()
+            card.update {
+                queue = QueueType.Rev
+                type = CardType.Rev
+                due = col.sched.today + 1
+            }
+            col.updateCard(card)
+
+            val args = argumentsDisplayingSubscreen(ContextMenuOption.STUDY_AHEAD, deckId = deckId)
+
+            withCustomStudyFragment(args = args) { fragment ->
+                val dialog = fragment.dialog as AlertDialog
+                val editText = fragment.binding.detailsEditText2
+                val layout = fragment.binding.detailsEditText2Layout
+
+                // validate NoLeadingZeroFilter
+                onSubscreenEditText().perform(replaceText("05"))
+                shadowOf(Looper.getMainLooper()).idle()
+                shadowOf(Looper.getMainLooper()).idle()
+                onSubscreenEditText().check(matches(withText("5")))
+                assertEquals("5", editText.text.toString())
+
+                // validate suffix  and button enabled
+                onSubscreenEditText().perform(replaceText("1"))
+                testScheduler.advanceTimeBy(301)
+                shadowOf(Looper.getMainLooper()).idle()
+                val expectedSuffix = fragment.resources.getQuantityString(R.plurals.set_due_date_label_suffix, 1, 1)
+                assertEquals(expectedSuffix, layout.suffixText.toString())
+                assertThat("Positive button should be enabled when cards match", dialog.positiveButton.isEnabled, equalTo(true))
+
+                // validate suffix
+                onSubscreenEditText().perform(replaceText("2"))
+                testScheduler.advanceTimeBy(301)
+                shadowOf(Looper.getMainLooper()).idle()
+                val expectedSuffixPlural = fragment.resources.getQuantityString(R.plurals.set_due_date_label_suffix, 2, 2)
+                assertEquals(expectedSuffixPlural, layout.suffixText.toString())
+
+                // validate zero behavior (button disabled)
+                onSubscreenEditText().perform(replaceText("0"))
+                testScheduler.advanceTimeBy(301)
+                shadowOf(Looper.getMainLooper()).idle()
+                assertThat("Button should be disabled when input is 0", dialog.positiveButton.isEnabled, equalTo(false))
+
+                // button should be disabled if no cards match criteria
+                card.update { queue = QueueType.New }
+                col.updateCard(card)
+
+                onSubscreenEditText().perform(replaceText("21"))
+                testScheduler.advanceTimeBy(301)
+                shadowOf(Looper.getMainLooper()).idle()
+                assertThat("Button should be disabled if no cards match criteria", dialog.positiveButton.isEnabled, equalTo(false))
+            }
+        }
 
     /**
      * Runs [block] on a [CustomStudyDialog]
